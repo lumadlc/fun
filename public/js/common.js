@@ -13,7 +13,10 @@ function renderHeaderActions(me) {
   if (!wrap) return;
   if (me) {
     wrap.innerHTML = `
-      <a href="/dashboard.html" class="btn btn-ghost">Профиль</a>
+      <div class="header-user-profile">
+        <div class="header-avatar">${me.username[0].toUpperCase()}</div>
+        <a href="/dashboard.html" class="btn btn-ghost">Личный кабинет</a>
+      </div>
     `;
   } else {
     wrap.innerHTML = `
