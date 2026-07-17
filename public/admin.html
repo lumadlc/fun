@@ -70,7 +70,7 @@
       </div>
       <div class="table-wrap" style="max-height:420px;">
         <table>
-          <thead><tr><th>UID</th><th>Имя</th><th>Email</th><th>Подписка до</th><th>Регистрация</th><th></th></tr></thead>
+          <thead><tr><th>UID</th><th>Имя</th><th>Email</th><th>Подписка до</th><th>Регистрация</th><th>Статус</th><th></th></tr></thead>
           <tbody id="users-body"></tbody>
         </table>
       </div>
@@ -121,7 +121,12 @@
         <td>${u.email}</td>
         <td>${u.subscription_until ? fmtDate(u.subscription_until) : 'None'}</td>
         <td>${fmtDate(u.created_at)}</td>
-        <td><button class="btn" data-add-sub="${u.uid}">+30 дней</button></td>
+        <td>${u.is_banned ? '<span class="tag" style="background:rgba(209,107,107,0.12); color:#e6a3a3;">Забанен</span>' : '<span class="tag tag-free">Активен</span>'}</td>
+        <td>
+          <button class="btn" data-add-sub="${u.uid}" title="Добавить 30 дней">+30д</button>
+          <button class="btn" data-remove-sub="${u.uid}" title="Снять подписку">-</button>
+          <button class="btn" data-ban-user="${u.uid}" title="Забанить">${u.is_banned ? '✓' : 'Бан'}</button>
+        </td>
       </tr>
     `).join('');
 
@@ -130,6 +135,24 @@
         await fetch(`/api/admin/users/${btn.dataset.addSub}/subscription`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ days: 30 })
+        });
+        loadUsers();
+      });
+    });
+
+    document.querySelectorAll('[data-remove-sub]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        await fetch(`/api/admin/users/${btn.dataset.removeSub}/subscription`, {
+          method: 'DELETE'
+        });
+        loadUsers();
+      });
+    });
+
+    document.querySelectorAll('[data-ban-user]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        await fetch(`/api/admin/users/${btn.dataset.banUser}/ban`, {
+          method: 'POST'
         });
         loadUsers();
       });

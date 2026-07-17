@@ -36,6 +36,7 @@ function publicUser(u) {
     hwid: u.hwid,
     subscription_until: u.subscription_until,
     is_admin: !!u.is_admin,
+    is_banned: !!u.is_banned,
     created_at: u.created_at
   };
 }
@@ -73,6 +74,8 @@ app.post('/api/login', (req, res) => {
 
   const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
   if (!user) return res.status(400).json({ error: 'invalid_credentials' });
+
+  if (user.is_banned) return res.status(403).json({ error: 'user_banned' });
 
   const ok = bcrypt.compareSync(password, user.password_hash);
   if (!ok) return res.status(400).json({ error: 'invalid_credentials' });
@@ -178,6 +181,23 @@ app.post('/api/admin/users/:uid/subscription', requireAdmin, (req, res) => {
   base.setDate(base.getDate() + parseInt(days, 10));
   db.prepare('UPDATE users SET subscription_until = ? WHERE uid = ?').run(base.toISOString(), uid);
   res.json({ ok: true });
+});
+
+app.delete('/api/admin/users/:uid/subscription', requireAdmin, (req, res) => {
+  const uid = req.params.uid;
+  const user = db.prepare('SELECT * FROM users WHERE uid = ?').get(uid);
+  if (!user) return res.status(404).json({ error: 'not_found' });
+  db.prepare('UPDATE users SET subscription_until = NULL WHERE uid = ?').run(uid);
+  res.json({ ok: true });
+});
+
+app.post('/api/admin/users/:uid/ban', requireAdmin, (req, res) => {
+  const uid = req.params.uid;
+  const user = db.prepare('SELECT * FROM users WHERE uid = ?').get(uid);
+  if (!user) return res.status(404).json({ error: 'not_found' });
+  const newBanStatus = user.is_banned ? 0 : 1;
+  db.prepare('UPDATE users SET is_banned = ? WHERE uid = ?').run(newBanStatus, uid);
+  res.json({ ok: true, is_banned: !!newBanStatus });
 });
 
 app.listen(PORT, () => {
