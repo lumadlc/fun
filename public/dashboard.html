@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LumaDLC — Профиль</title>
+<link rel="icon" href="/img/logo.png">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="brand">
+    <img src="/img/logo.png" alt="Luma" class="brand-logo" style="object-fit:cover;">
+    LumaDLC
+  </div>
+  <nav class="site-nav">
+    <a href="/">Главная</a>
+  </nav>
+  <div class="header-actions" id="header-actions"></div>
+</header>
+
+<div class="dash-wrap">
+
+  <div class="dash-tabs">
+    <div class="dash-tab active" data-panel="account">👤 Аккаунт</div>
+    <div class="dash-tab" data-panel="settings">⚙ Настройки</div>
+    <div class="dash-tab" data-panel="launcher">🚀 Лаунчер</div>
+  </div>
+
+  <!-- ACCOUNT -->
+  <div class="dash-panel active" id="panel-account">
+    <div class="card" style="margin-bottom:16px;">
+      <div class="profile-card">
+        <div class="profile-left">
+          <div class="avatar" id="avatar-initial">?</div>
+          <div>
+            <div class="profile-name">
+              <span id="profile-username">—</span>
+              <span class="profile-uid" id="profile-uid"></span>
+            </div>
+            <div class="profile-sub">Подписка до: <span id="profile-sub">None</span></div>
+          </div>
+        </div>
+        <button class="icon-btn" id="logout-btn" title="Выйти">⏻</button>
+      </div>
+    </div>
+
+    <div class="info-grid">
+      <div class="info-box">
+        <div class="info-label">✉ Email</div>
+        <div class="info-value" id="info-email">—</div>
+      </div>
+      <div class="info-box">
+        <div class="info-label">📅 Регистрация</div>
+        <div class="info-value" id="info-created">—</div>
+      </div>
+      <div class="info-box">
+        <div class="info-label">🖥 HWID</div>
+        <div class="info-value" id="info-hwid">Не привязан</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="dash-panel" id="panel-settings">
+    <div class="card">
+
+      <div class="settings-block">
+        <div class="section-title">Сменить email</div>
+        <div class="settings-row">
+          <div class="field-input-wrap">
+            <span class="icon">🔒</span>
+            <input type="password" id="email-current-password" placeholder="Текущий пароль...">
+          </div>
+          <div class="field-input-wrap">
+            <span class="icon">✉</span>
+            <input type="email" id="email-new" placeholder="Новый email...">
+          </div>
+          <button class="btn" id="change-email-btn">✎ Изменить</button>
+        </div>
+      </div>
+
+      <hr class="hr-soft">
+
+      <div class="settings-block">
+        <div class="section-title">Сменить пароль</div>
+        <div class="settings-row">
+          <div class="field-input-wrap">
+            <span class="icon">🔒</span>
+            <input type="password" id="password-current" placeholder="Текущий пароль...">
+          </div>
+          <div class="field-input-wrap">
+            <span class="icon">🔒</span>
+            <input type="password" id="password-new" placeholder="Новый пароль...">
+          </div>
+          <button class="btn" id="change-password-btn">✎ Изменить</button>
+        </div>
+      </div>
+
+      <hr class="hr-soft">
+
+      <div class="settings-block">
+        <div class="section-title">Безопасность аккаунта (2FA)</div>
+        <button class="tg-btn">✈ Настроить 2FA в Telegram</button>
+      </div>
+
+      <div class="form-error" id="settings-error" style="margin-top:16px;"></div>
+      <div class="form-success" id="settings-success" style="margin-top:16px;"></div>
+    </div>
+  </div>
+
+  <!-- LAUNCHER -->
+  <div class="dash-panel" id="panel-launcher">
+    <div class="card">
+      <div class="launcher-info-row">
+        <div class="info-box">
+          <div class="info-label">🖥 Операционная система</div>
+          <div class="info-value">Windows 10/11 (x64)</div>
+        </div>
+        <div class="info-box">
+          <div class="info-label">💾 RAM</div>
+          <div class="info-value">4 GB</div>
+        </div>
+        <div class="info-box">
+          <div class="info-label">🖵 Видеокарта</div>
+          <div class="info-value">Nvidia / Amd / Intel</div>
+        </div>
+      </div>
+      <div class="download-row">
+        <div class="muted">🕐 Последнее обновление<br><strong style="color:var(--text)">18.01.2026</strong></div>
+        <button class="btn btn-primary" id="download-btn">⬇ Скачать</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<footer class="site-footer">© LumaDLC</footer>
+
+<script src="/js/common.js"></script>
+<script>
+  const tabs = document.querySelectorAll('.dash-tab');
+  const panels = document.querySelectorAll('.dash-panel');
+  tabs.forEach(t => t.addEventListener('click', () => {
+    tabs.forEach(x => x.classList.toggle('active', x === t));
+    panels.forEach(p => p.classList.toggle('active', p.id === 'panel-' + t.dataset.panel));
+  }));
+
+  function fmtDate(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return d.toLocaleDateString('ru-RU');
+  }
+
+  (async () => {
+    const me = await initHeader();
+    if (!me) { location.href = '/auth.html?tab=login'; return; }
+
+    document.getElementById('avatar-initial').textContent = me.username[0].toUpperCase();
+    document.getElementById('profile-username').textContent = me.username;
+    document.getElementById('profile-uid').textContent = '[' + me.uid + ']';
+    document.getElementById('profile-sub').textContent = me.subscription_until
+      ? fmtDate(me.subscription_until) : 'None';
+    document.getElementById('info-email').textContent = me.email;
+    document.getElementById('info-created').textContent = fmtDate(me.created_at);
+    document.getElementById('info-hwid').textContent = me.hwid || 'Не привязан';
+
+    document.getElementById('logout-btn').addEventListener('click', async () => {
+      await fetch('/api/logout', { method: 'POST' });
+      location.href = '/';
+    });
+
+    const settingsErr = document.getElementById('settings-error');
+    const settingsOk = document.getElementById('settings-success');
+    function flash(box, msg) {
+      settingsErr.classList.remove('show');
+      settingsOk.classList.remove('show');
+      box.textContent = msg;
+      box.classList.add('show');
+    }
+
+    const settingsErrors = {
+      wrong_password: 'Текущий пароль указан неверно',
+      email_taken: 'Этот email уже используется',
+      password_too_short: 'Новый пароль должен быть не менее 6 символов'
+    };
+
+    document.getElementById('change-email-btn').addEventListener('click', async () => {
+      const current_password = document.getElementById('email-current-password').value;
+      const new_email = document.getElementById('email-new').value;
+      const res = await fetch('/api/account/change-email', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ current_password, new_email })
+      });
+      const data = await res.json();
+      if (!res.ok) return flash(settingsErr, settingsErrors[data.error] || 'Ошибка');
+      document.getElementById('info-email').textContent = new_email;
+      flash(settingsOk, 'Email успешно изменён');
+    });
+
+    document.getElementById('change-password-btn').addEventListener('click', async () => {
+      const current_password = document.getElementById('password-current').value;
+      const new_password = document.getElementById('password-new').value;
+      const res = await fetch('/api/account/change-password', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ current_password, new_password })
+      });
+      const data = await res.json();
+      if (!res.ok) return flash(settingsErr, settingsErrors[data.error] || 'Ошибка');
+      flash(settingsOk, 'Пароль успешно изменён');
+    });
+  })();
+</script>
+</body>
+</html>

@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LumaDLC — Админ панель</title>
+<link rel="icon" href="/img/logo.png">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="brand">
+    <img src="/img/logo.png" alt="Luma" class="brand-logo" style="object-fit:cover;">
+    LumaDLC — Админ
+  </div>
+  <nav class="site-nav">
+    <a href="/dashboard.html">← В профиль</a>
+  </nav>
+  <div class="header-actions" id="header-actions"></div>
+</header>
+
+<div class="dash-wrap">
+  <div id="not-admin" class="card" style="display:none;">
+    У вас нет доступа к админ-панели.
+  </div>
+
+  <div id="admin-content" style="display:none;">
+    <div class="admin-grid">
+
+      <div class="card">
+        <div class="section-title">🎟 Коды приглашений</div>
+        <button class="btn btn-primary" id="gen-invite-btn">+ Создать код</button>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Код</th><th>Статус</th><th>Кем использован</th></tr></thead>
+            <tbody id="invite-codes-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-title">🔑 Лицензионные ключи</div>
+        <div class="settings-row" style="grid-template-columns: 1fr auto; margin-bottom:14px;">
+          <div class="field-input-wrap">
+            <input type="number" id="key-duration" placeholder="Срок действия (дней)" min="1">
+          </div>
+          <button class="btn btn-primary" id="gen-key-btn">+ Создать ключ</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Ключ</th><th>Дней</th><th>Статус</th></tr></thead>
+            <tbody id="license-keys-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+      <div class="section-title">👥 Пользователи</div>
+      <div class="table-wrap" style="max-height:420px;">
+        <table>
+          <thead><tr><th>UID</th><th>Имя</th><th>Email</th><th>Подписка до</th><th>Регистрация</th><th></th></tr></thead>
+          <tbody id="users-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="site-footer">© LumaDLC</footer>
+
+<script src="/js/common.js"></script>
+<script>
+  function fmtDate(iso) {
+    if (!iso) return '—';
+    return new Date(iso).toLocaleDateString('ru-RU');
+  }
+
+  async function loadInviteCodes() {
+    const res = await fetch('/api/admin/invite-codes');
+    const codes = await res.json();
+    document.getElementById('invite-codes-body').innerHTML = codes.map(c => `
+      <tr>
+        <td><span class="code-chip">${c.code}</span></td>
+        <td>${c.used ? '<span class="tag tag-used">Использован</span>' : '<span class="tag tag-free">Свободен</span>'}</td>
+        <td>${c.used_by || '—'}</td>
+      </tr>
+    `).join('');
+  }
+
+  async function loadLicenseKeys() {
+    const res = await fetch('/api/admin/license-keys');
+    const keys = await res.json();
+    document.getElementById('license-keys-body').innerHTML = keys.map(k => `
+      <tr>
+        <td><span class="code-chip">${k.key_code}</span></td>
+        <td>${k.duration_days}</td>
+        <td>${k.used ? '<span class="tag tag-used">Использован</span>' : '<span class="tag tag-free">Свободен</span>'}</td>
+      </tr>
+    `).join('');
+  }
+
+  async function loadUsers() {
+    const res = await fetch('/api/admin/users');
+    const users = await res.json();
+    document.getElementById('users-body').innerHTML = users.map(u => `
+      <tr>
+        <td>${u.uid}</td>
+        <td>${u.username}${u.is_admin ? ' <span class="tag tag-free">admin</span>' : ''}</td>
+        <td>${u.email}</td>
+        <td>${u.subscription_until ? fmtDate(u.subscription_until) : 'None'}</td>
+        <td>${fmtDate(u.created_at)}</td>
+        <td><button class="btn" data-add-sub="${u.uid}">+30 дней</button></td>
+      </tr>
+    `).join('');
+
+    document.querySelectorAll('[data-add-sub]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        await fetch(`/api/admin/users/${btn.dataset.addSub}/subscription`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ days: 30 })
+        });
+        loadUsers();
+      });
+    });
+  }
+
+  (async () => {
+    const me = await initHeader();
+    if (!me) { location.href = '/auth.html?tab=login'; return; }
+    if (!me.is_admin) {
+      document.getElementById('not-admin').style.display = 'block';
+      return;
+    }
+    document.getElementById('admin-content').style.display = 'block';
+    loadInviteCodes();
+    loadLicenseKeys();
+    loadUsers();
+
+    document.getElementById('gen-invite-btn').addEventListener('click', async () => {
+      await fetch('/api/admin/invite-codes', { method: 'POST' });
+      loadInviteCodes();
+    });
+
+    document.getElementById('gen-key-btn').addEventListener('click', async () => {
+      const duration_days = document.getElementById('key-duration').value;
+      if (!duration_days) return;
+      await fetch('/api/admin/license-keys', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ duration_days })
+      });
+      document.getElementById('key-duration').value = '';
+      loadLicenseKeys();
+    });
+  })();
+</script>
+</body>
+</html>

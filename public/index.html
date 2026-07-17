@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LumaDLC</title>
+<link rel="icon" href="/img/logo.png">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="brand">
+    <img src="/img/logo.png" alt="Luma" class="brand-logo" style="object-fit:cover;">
+    LumaDLC
+  </div>
+  <nav class="site-nav">
+    <a href="/">Главная</a>
+  </nav>
+  <div class="header-actions" id="header-actions"></div>
+</header>
+
+<section class="hero hero-fog">
+  <h1>Luma — Your Best Choice !</h1>
+  <a href="/auth.html?tab=register" class="btn btn-primary btn-lg" id="start-btn">Начать</a>
+</section>
+
+<footer class="site-footer">© LumaDLC</footer>
+
+<script src="/js/common.js"></script>
+<script>
+  (async () => {
+    const me = await initHeader();
+    const startBtn = document.getElementById('start-btn');
+    if (me) startBtn.setAttribute('href', '/dashboard.html');
+  })();
+</script>
+</body>
+</html>
