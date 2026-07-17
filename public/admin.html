@@ -75,6 +75,42 @@
         </table>
       </div>
     </div>
+
+    <!-- Ban Modal -->
+    <div id="ban-modal" class="modal" style="display:none;">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Забанить пользователя</h3>
+          <button class="modal-close" id="ban-modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="field-group">
+            <label class="field-label">Причина бана</label>
+            <select id="ban-reason" class="field-select">
+              <option value="Спам">Спам</option>
+              <option value="Оскорбления">Оскорбления</option>
+              <option value="Нарушение правил">Нарушение правил</option>
+              <option value="Незаконная деятельность">Незаконная деятельность</option>
+              <option value="Другое">Другое</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label class="field-label">На сколько дней?</label>
+            <select id="ban-days" class="field-select">
+              <option value="1">1 день</option>
+              <option value="3">3 дня</option>
+              <option value="7" selected>7 дней</option>
+              <option value="30">30 дней</option>
+              <option value="365">Навсегда (1 год)</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn" id="ban-modal-cancel">Отмена</button>
+          <button class="btn btn-primary" id="ban-modal-confirm">Забанить</button>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -86,6 +122,8 @@
     if (!iso) return '—';
     return new Date(iso).toLocaleDateString('ru-RU');
   }
+
+  let currentBanUid = null; // Глобальная переменная для ban modal
 
   async function loadInviteCodes() {
     const res = await fetch('/api/admin/invite-codes');
@@ -114,22 +152,34 @@
   async function loadUsers() {
     const res = await fetch('/api/admin/users');
     const users = await res.json();
-    document.getElementById('users-body').innerHTML = users.map(u => `
-      <tr>
-        <td>${u.uid}</td>
-        <td>${u.username}${u.is_admin ? ' <span class="tag tag-free">admin</span>' : ''}</td>
-        <td>${u.email}</td>
-        <td>${u.subscription_until ? fmtDate(u.subscription_until) : 'None'}</td>
-        <td>${fmtDate(u.created_at)}</td>
-        <td>${u.is_banned ? '<span class="tag" style="background:rgba(209,107,107,0.12); color:#e6a3a3;">Забанен</span>' : '<span class="tag tag-free">Активен</span>'}</td>
-        <td>
-          <button class="btn" data-add-sub="${u.uid}" title="Добавить 30 дней">+30д</button>
-          <button class="btn" data-remove-sub="${u.uid}" title="Снять подписку">-</button>
-          <button class="btn" data-ban-user="${u.uid}" title="Забанить">${u.is_banned ? '✓' : 'Бан'}</button>
-        </td>
-      </tr>
-    `).join('');
+    document.getElementById('users-body').innerHTML = users.map(u => {
+      let statusBadge = '<span class="tag tag-free">Активен</span>';
+      if (u.is_banned) {
+        const banUntil = new Date(u.ban_until);
+        const now = new Date();
+        if (now < banUntil) {
+          statusBadge = `<span class="tag" style="background:rgba(209,107,107,0.12); color:#e6a3a3;">Забанен до ${banUntil.toLocaleDateString('ru-RU')}</span>`;
+        }
+      }
+      
+      return `
+        <tr>
+          <td>${u.uid}</td>
+          <td>${u.username}${u.is_admin ? ' <span class="tag tag-free">admin</span>' : ''}</td>
+          <td>${u.email}</td>
+          <td>${u.subscription_until ? fmtDate(u.subscription_until) : 'None'}</td>
+          <td>${fmtDate(u.created_at)}</td>
+          <td>${statusBadge}</td>
+          <td>
+            <button class="btn btn-sm" data-add-sub="${u.uid}" title="Добавить 30 дней">+30д</button>
+            <button class="btn btn-sm" data-remove-sub="${u.uid}" title="Снять подписку">-</button>
+            <button class="btn btn-sm ${u.is_banned ? 'btn-danger' : ''}" data-ban-user="${u.uid}" title="${u.is_banned ? 'Снять бан' : 'Забанить'}">${u.is_banned ? '✓ Разбан' : 'Бан'}</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
 
+    // Кнопки добавления подписки
     document.querySelectorAll('[data-add-sub]').forEach(btn => {
       btn.addEventListener('click', async () => {
         await fetch(`/api/admin/users/${btn.dataset.addSub}/subscription`, {
@@ -140,6 +190,7 @@
       });
     });
 
+    // Кнопки снятия подписки
     document.querySelectorAll('[data-remove-sub]').forEach(btn => {
       btn.addEventListener('click', async () => {
         await fetch(`/api/admin/users/${btn.dataset.removeSub}/subscription`, {
@@ -149,12 +200,21 @@
       });
     });
 
+    // Кнопки бана
     document.querySelectorAll('[data-ban-user]').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        await fetch(`/api/admin/users/${btn.dataset.banUser}/ban`, {
-          method: 'POST'
-        });
-        loadUsers();
+      btn.addEventListener('click', () => {
+        const uid = btn.dataset.banUser;
+        const user = users.find(u => u.uid == uid);
+        
+        if (user.is_banned) {
+          // Если забанен - снимаем бан сразу
+          fetch(`/api/admin/users/${uid}/ban`, { method: 'POST' })
+            .then(() => loadUsers());
+        } else {
+          // Если не забанен - показываем модальное окно
+          currentBanUid = uid;
+          document.getElementById('ban-modal').style.display = 'flex';
+        }
       });
     });
   }
@@ -185,6 +245,47 @@
       });
       document.getElementById('key-duration').value = '';
       loadLicenseKeys();
+    });
+
+    // Ban Modal Handler
+    const banModal = document.getElementById('ban-modal');
+    const banModalClose = document.getElementById('ban-modal-close');
+    const banModalCancel = document.getElementById('ban-modal-cancel');
+    const banModalConfirm = document.getElementById('ban-modal-confirm');
+
+    banModalClose.addEventListener('click', () => {
+      banModal.style.display = 'none';
+      currentBanUid = null;
+    });
+
+    banModalCancel.addEventListener('click', () => {
+      banModal.style.display = 'none';
+      currentBanUid = null;
+    });
+
+    banModalConfirm.addEventListener('click', async () => {
+      const reason = document.getElementById('ban-reason').value;
+      const days = document.getElementById('ban-days').value;
+      
+      if (!currentBanUid) return;
+      
+      await fetch(`/api/admin/users/${currentBanUid}/ban`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason, days })
+      });
+      
+      banModal.style.display = 'none';
+      currentBanUid = null;
+      loadUsers();
+    });
+
+    // Закрытие модала по клику вне
+    banModal.addEventListener('click', (e) => {
+      if (e.target === banModal) {
+        banModal.style.display = 'none';
+        currentBanUid = null;
+      }
     });
   })();
 </script>

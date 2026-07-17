@@ -37,6 +37,8 @@ function publicUser(u) {
     subscription_until: u.subscription_until,
     is_admin: !!u.is_admin,
     is_banned: !!u.is_banned,
+    ban_reason: u.ban_reason,
+    ban_until: u.ban_until,
     created_at: u.created_at
   };
 }
@@ -75,7 +77,17 @@ app.post('/api/login', (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
   if (!user) return res.status(400).json({ error: 'invalid_credentials' });
 
-  if (user.is_banned) return res.status(403).json({ error: 'user_banned' });
+  // Проверка активного бана
+  if (user.is_banned && user.ban_until) {
+    const now = new Date();
+    const banUntil = new Date(user.ban_until);
+    if (now < banUntil) {
+      return res.status(403).json({ error: 'user_banned', reason: user.ban_reason });
+    } else {
+      // Бан истек, снимаем его
+      db.prepare('UPDATE users SET is_banned = 0, ban_reason = NULL, ban_until = NULL WHERE uid = ?').run(user.uid);
+    }
+  }
 
   const ok = bcrypt.compareSync(password, user.password_hash);
   if (!ok) return res.status(400).json({ error: 'invalid_credentials' });
@@ -193,11 +205,29 @@ app.delete('/api/admin/users/:uid/subscription', requireAdmin, (req, res) => {
 
 app.post('/api/admin/users/:uid/ban', requireAdmin, (req, res) => {
   const uid = req.params.uid;
+  const { reason, days } = req.body || {};
+  
   const user = db.prepare('SELECT * FROM users WHERE uid = ?').get(uid);
   if (!user) return res.status(404).json({ error: 'not_found' });
-  const newBanStatus = user.is_banned ? 0 : 1;
-  db.prepare('UPDATE users SET is_banned = ? WHERE uid = ?').run(newBanStatus, uid);
-  res.json({ ok: true, is_banned: !!newBanStatus });
+  
+  // Если админ - не банить
+  if (user.is_admin) return res.status(403).json({ error: 'cannot_ban_admin' });
+  
+  // Если уже забанен - снимаем бан
+  if (user.is_banned) {
+    db.prepare('UPDATE users SET is_banned = 0, ban_reason = NULL, ban_until = NULL WHERE uid = ?').run(uid);
+    return res.json({ ok: true, is_banned: false });
+  }
+  
+  // Баним на указанное время
+  const banDays = parseInt(days, 10) || 7; // По умолчанию на 7 дней
+  const banUntil = new Date();
+  banUntil.setDate(banUntil.getDate() + banDays);
+  
+  db.prepare('UPDATE users SET is_banned = 1, ban_reason = ?, ban_until = ? WHERE uid = ?')
+    .run(reason || 'Без указания причины', banUntil.toISOString(), uid);
+  
+  res.json({ ok: true, is_banned: true, ban_until: banUntil.toISOString() });
 });
 
 app.listen(PORT, () => {

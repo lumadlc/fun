@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS users (
   subscription_until TEXT,
   is_admin INTEGER DEFAULT 0,
   is_banned INTEGER DEFAULT 0,
+  ban_reason TEXT,
+  ban_until TEXT,
   created_at TEXT DEFAULT (datetime('now'))
 );
 
