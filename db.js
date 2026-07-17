@@ -4,7 +4,32 @@ const path = require('path');
 
 const db = new Database(path.join(__dirname, 'lumadlc.db'));
 
+// Критичные настройки для persistent storage
 db.pragma('journal_mode = WAL');
+db.pragma('synchronous = FULL');
+db.pragma('foreign_keys = ON');
+
+// Убедиться что данные пишутся на диск
+db.exec('VACUUM;');
+
+// Graceful shutdown - слить WAL в основную БД
+function shutdown() {
+  try {
+    db.exec('PRAGMA optimize;');
+    db.close();
+    console.log('Database closed gracefully');
+  } catch (e) {
+    console.error('Error closing database:', e);
+  }
+}
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
+process.on('exit', () => {
+  try {
+    if (db) db.close();
+  } catch (e) {}
+});
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (
@@ -41,6 +66,18 @@ CREATE TABLE IF NOT EXISTS license_keys (
 );
 `);
 
+// Migration: добавить новые поля если их нет
+try {
+  db.prepare('SELECT is_banned FROM users LIMIT 1').get();
+} catch (e) {
+  console.log('Migrating database: adding ban fields...');
+  db.exec(`
+    ALTER TABLE users ADD COLUMN is_banned INTEGER DEFAULT 0;
+    ALTER TABLE users ADD COLUMN ban_reason TEXT;
+    ALTER TABLE users ADD COLUMN ban_until TEXT;
+  `);
+}
+
 // Seed one admin account and a few invite codes if empty
 const userCount = db.prepare('SELECT COUNT(*) as c FROM users').get().c;
 if (userCount === 0) {
@@ -51,6 +88,11 @@ if (userCount === 0) {
   const seedCodes = ['LUMA-WELCOME-01', 'LUMA-WELCOME-02', 'LUMA-WELCOME-03'];
   const insertCode = db.prepare('INSERT INTO invite_codes (code) VALUES (?)');
   seedCodes.forEach(c => insertCode.run(c));
+  
+  console.log('Database initialized with admin account');
 }
+
+// Сохранить базу перед экспортом
+db.exec('PRAGMA optimize;');
 
 module.exports = db;

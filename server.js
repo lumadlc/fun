@@ -53,21 +53,29 @@ app.post('/api/register', (req, res) => {
   if (username.length < 3) return res.status(400).json({ error: 'username_too_short' });
   if (password.length < 6) return res.status(400).json({ error: 'password_too_short' });
 
-  const code = db.prepare('SELECT * FROM invite_codes WHERE code = ?').get(invite_code.trim());
-  if (!code) return res.status(400).json({ error: 'invalid_invite_code' });
-  if (code.used) return res.status(400).json({ error: 'invite_code_used' });
+  try {
+    const code = db.prepare('SELECT * FROM invite_codes WHERE code = ?').get(invite_code.trim());
+    if (!code) return res.status(400).json({ error: 'invalid_invite_code' });
+    if (code.used) return res.status(400).json({ error: 'invite_code_used' });
 
-  const existing = db.prepare('SELECT uid FROM users WHERE username = ? OR email = ?').get(username, email);
-  if (existing) return res.status(400).json({ error: 'user_exists' });
+    const existing = db.prepare('SELECT uid FROM users WHERE username = ? OR email = ?').get(username, email);
+    if (existing) return res.status(400).json({ error: 'user_exists' });
 
-  const hash = bcrypt.hashSync(password, 10);
-  const info = db.prepare('INSERT INTO users (username, email, password_hash) VALUES (?,?,?)')
-    .run(username, email, hash);
+    const hash = bcrypt.hashSync(password, 10);
+    const info = db.prepare('INSERT INTO users (username, email, password_hash) VALUES (?,?,?)')
+      .run(username, email, hash);
 
-  db.prepare('UPDATE invite_codes SET used = 1, used_by = ? WHERE id = ?').run(info.lastInsertRowid, code.id);
+    db.prepare('UPDATE invite_codes SET used = 1, used_by = ? WHERE id = ?').run(info.lastInsertRowid, code.id);
+    
+    // Убедиться что данные сохранены
+    db.exec('PRAGMA optimize;');
 
-  req.session.uid = info.lastInsertRowid;
-  res.json({ ok: true });
+    req.session.uid = info.lastInsertRowid;
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Register error:', err);
+    res.status(500).json({ error: 'server_error' });
+  }
 });
 
 app.post('/api/login', (req, res) => {
@@ -232,4 +240,16 @@ app.post('/api/admin/users/:uid/ban', requireAdmin, (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`LumaDLC server running on http://localhost:${PORT}`);
+});
+
+// Graceful shutdown
+process.on('SIGINT', () => {
+  console.log('Shutting down gracefully...');
+  try {
+    db.exec('PRAGMA optimize;');
+    process.exit(0);
+  } catch (e) {
+    console.error('Error during shutdown:', e);
+    process.exit(1);
+  }
 });
